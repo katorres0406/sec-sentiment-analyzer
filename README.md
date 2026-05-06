@@ -1,5 +1,8 @@
 # LinguaQ — Traductor con Qwen2-0.5B
 
+LIGA MODELO
+https://katorres0406.github.io/sec-sentiment-analyzer/index-2.html
+
 **Traducción de idiomas 100% en el navegador, sin servidor, sin API keys.**
 
 Usa [onnx-community/Qwen2.5-0.5B-Instruct](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct) ejecutado localmente mediante [Transformers.js](https://huggingface.co/docs/transformers.js).
@@ -9,6 +12,7 @@ Usa [onnx-community/Qwen2.5-0.5B-Instruct](https://huggingface.co/onnx-community
 ## Demo rápida
 
 Abre `translator.html` directamente en tu navegador (Chrome/Edge recomendado).
+
 
 > ⚠️ La **primera carga** descarga el modelo (~250–400 MB en versión q4). Las siguientes cargas usan caché del navegador y son instantáneas.
 

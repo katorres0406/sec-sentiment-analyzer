@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEC Sentiment Analyzer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --surface2: #1a1a26;
+      --border: #2a2a3a;
+      --border2: #3a3a55;
+      --text: #e8e8f0;
+      --text-muted: #7878a0;
+      --text-dim: #4a4a6a;
+      --accent: #4a9eff;
+      --accent2: #7c5cfc;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --yellow: #f39c12;
+      --radius: 8px;
+      --font: 'IBM Plex Sans', system-ui, sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      color: var(--text);
+    }
+    .logo-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(74, 158, 255, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(74, 158, 255, 0.25);
+      letter-spacing: 0.08em;
+    }
+
+    /* Layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 0;
+      height: calc(100vh - 56px);
+      overflow: hidden;
+    }
+
+    /* Left panel */
+    .panel-left {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .panel-section {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(74, 158, 255, 0.04);
+    }
+    .drop-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .drop-icon {
+      font-size: 28px;
+      margin-bottom: 0.5rem;
+      display: block;
+      opacity: 0.5;
+    }
+    .drop-label { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .drop-label strong { color: var(--accent); font-weight: 500; }
+    .file-info {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 0.6rem 0.8rem;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-top: 0.75rem;
+      font-size: 12px;
+    }
+    .file-info.show { display: flex; }
+    .file-icon { font-size: 18px; }
+    .file-name { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--text); truncate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+    /* Model selector */
+    select {
+      width: 100%;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.55rem 0.75rem;
+      font-size: 13px;
+      font-family: var(--font);
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237878a0' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      padding-right: 2rem;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    /* Section select */
+    .section-controls { display: flex; flex-direction: column; gap: 0.5rem; }
+    .radio-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .radio-opt {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0.45rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 13px;
+    }
+    .radio-opt:hover { background: var(--surface2); }
+    .radio-opt input[type=radio] { accent-color: var(--accent); }
+
+    /* Sections list */
+    .sections-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .section-item {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      transition: all 0.15s;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-item:hover { background: var(--surface2); color: var(--text); }
+    .section-item.active {
+      background: rgba(74, 158, 255, 0.08);
+      border-color: rgba(74, 158, 255, 0.2);
+      color: var(--accent);
+    }
+    .section-length {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Run button */
+    .run-btn {
+      margin: 0.75rem;
+      padding: 0.7rem;
+      border: none;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.02em;
+    }
+    .run-btn:hover { opacity: 0.9; }
+    .run-btn:active { transform: scale(0.98); }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Right panel */
+    .panel-right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .result-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .result-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .result-meta {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .result-body { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      text-align: center;
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .empty-icon { font-size: 40px; opacity: 0.3; }
+    .empty-text { font-size: 14px; line-height: 1.6; max-width: 300px; }
+
+    /* Loading */
+    .loading-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 3rem;
+    }
+    .loading-state.show { display: flex; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 13px; color: var(--text-muted); font-family: var(--mono); }
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%,20%   { content: ''; }
+      40%      { content: '.'; }
+      60%      { content: '..'; }
+      80%,100% { content: '...'; }
+    }
+
+    /* Sentiment cards */
+    .sentiment-overview {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      text-align: center;
+    }
+    .score-card.main { grid-column: 1 / -1; padding: 1.25rem; }
+    .score-label { font-size: 11px; color: var(--text-muted); font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; }
+    .score-value { font-size: 28px; font-weight: 600; font-family: var(--mono); }
+    .score-value.positive { color: var(--green); }
+    .score-value.negative { color: var(--red); }
+    .score-value.neutral { color: var(--yellow); }
+    .score-sub { font-size: 12px; color: var(--text-muted); margin-top: 0.25rem; }
+
+    /* Meter */
+    .sentiment-meter {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+    }
+    .meter-label { font-size: 12px; color: var(--text-muted); margin-bottom: 0.75rem; display: flex; justify-content: space-between; }
+    .meter-bar {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .meter-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .meter-labels { display: flex; justify-content: space-between; margin-top: 0.4rem; font-size: 10px; color: var(--text-dim); font-family: var(--mono); }
+
+    /* Analysis section */
+    .analysis-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .analysis-header {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      letter-spacing: 0.05em;
+    }
+    .analysis-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .analysis-content {
+      padding: 1rem;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+    .analysis-content p { margin-bottom: 0.75rem; }
+    .analysis-content p:last-child { margin-bottom: 0; }
+
+    /* Tags */
+    .tags-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid;
+    }
+    .tag.pos { background: rgba(46,204,113,0.08); border-color: rgba(46,204,113,0.25); color: #2ecc71; }
+    .tag.neg { background: rgba(231,76,60,0.08); border-color: rgba(231,76,60,0.25); color: #e74c3c; }
+    .tag.neu { background: rgba(243,156,18,0.08); border-color: rgba(243,156,18,0.25); color: #f39c12; }
+
+    /* Raw text preview */
+    .text-preview {
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Token info */
+    .token-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .token-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel-left { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .sections-list { max-height: 150px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    SEC SENTIMENT ANALYZER
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:center;">
+    <span class="badge">LOCAL LLM</span>
+    <span class="badge" id="model-badge">QWEN2</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT PANEL -->
+  <aside class="panel-left">
+
+    <!-- Upload -->
+    <div class="panel-section">
+      <div class="section-label">01 / Document</div>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept=".txt,.htm,.html,.pdf,.xml" />
+        <span class="drop-icon">📄</span>
+        <div class="drop-label">
+          <strong>Click to upload</strong> or drag & drop<br>
+          TXT · HTML · XML · PDF (text)
+        </div>
+      </div>
+      <div class="file-info" id="file-info">
+        <span class="file-icon">📃</span>
+        <span class="file-name" id="file-name">—</span>
+        <span class="file-size" id="file-size">—</span>
+      </div>
+    </div>
+
+    <!-- Model -->
+    <div class="panel-section">
+      <div class="section-label">02 / Model (Anthropic API)</div>
+      <select id="model-select">
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
+        <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4 (balanced)</option>
+      </select>
+      <div style="margin-top:0.5rem;font-size:11px;color:var(--text-dim);font-family:var(--mono);">
+        Runs via Anthropic API — swap for local Qwen endpoint if preferred
+      </div>
+    </div>
+
+    <!-- Scope -->
+    <div class="panel-section">
+      <div class="section-label">03 / Analysis Scope</div>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="scope" value="full" checked id="scope-full" />
+          Entire document
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="scope" value="section" id="scope-section" />
+          Specific section
+        </label>
+      </div>
+    </div>
+
+    <!-- Sections -->
+    <div class="section-label" style="padding:0.75rem 1rem 0.25rem;color:var(--text-dim);">Detected sections</div>
+    <div class="sections-list" id="sections-list">
+      <div style="font-size:12px;color:var(--text-dim);padding:0.5rem;text-align:center;">
+        Upload a document to see sections
+      </div>
+    </div>
+
+    <button class="run-btn" id="run-btn" disabled>
+      ▶ &nbsp;Run Sentiment Analysis
+    </button>
+  </aside>
+
+  <!-- RIGHT PANEL -->
+  <section class="panel-right">
+    <div class="result-header">
+      <span class="result-title">Analysis Output</span>
+      <span class="result-meta" id="result-meta">—</span>
+    </div>
+
+    <div class="result-body" id="result-body">
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-text">Upload an SEC filing and run the analysis to see sentiment results here.</div>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>
+        <div class="loading-text">Analyzing sentiment<span class="loading-dots"></span></div>
+      </div>
+
+      <!-- Results (hidden initially) -->
+      <div id="results-container" style="display:none;display:flex;flex-direction:column;gap:1rem;"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ── FINANCIAL SENTIMENT LEXICON (Loughran-McDonald inspired) ──────────────────
+const POS_WORDS = new Set([
+  "growth","grew","increase","increased","increases","record","strong","strength",
+  "exceed","exceeded","exceeds","outperform","outperformed","innovative","innovation",
+  "profitable","profitability","profit","profits","gain","gains","improved","improvement",
+  "improvements","expanding","expansion","opportunity","opportunities","robust","solid",
+  "momentum","milestone","achievement","achievements","leading","leader","leadership",
+  "efficient","efficiency","confident","confidence","optimistic","optimism","successful",
+  "success","positive","advantage","advantages","recovery","recovered","accelerate",
+  "accelerated","breakthrough","deliver","delivered","exceeded","significant","substantially",
+  "favorable","favourable","upside","outpace","surge","surged","beat","beats","launch",
+  "launched","won","win","winning","highest","best","exceeded","record-breaking",
+  "reward","rewarded","shareholder","dividend","dividends","buyback","repurchase",
+  "cash","liquidity","margin","margins","revenue","revenues","earnings","eps",
+  "appreciation","appreciate","appreciated","return","returns","yield","yields"
+]);
+
+const NEG_WORDS = new Set([
+  "risk","risks","decline","declined","declines","loss","losses","decrease","decreased",
+  "decreases","adverse","adversely","challenge","challenges","difficult","difficulty",
+  "concern","concerns","uncertain","uncertainty","uncertainties","volatile","volatility",
+  "threat","threats","impairment","impairments","litigation","lawsuit","legal",
+  "penalty","penalties","violation","violations","investigation","investigations",
+  "recall","recalls","deficit","deficits","shortfall","shortfalls","downgrade",
+  "downgraded","deteriorate","deterioration","deteriorated","weakness","weak",
+  "unfavorable","unfavourable","headwind","headwinds","disruption","disruptions",
+  "delay","delays","delayed","cancellation","cancelled","write-off","writeoff",
+  "write-down","writedown","impaired","impair","bankruptcy","bankrupt","default",
+  "defaulted","breach","breached","failure","fail","failed","miss","missed",
+  "disappointing","disappointed","disappoint","shortage","shortages","competition",
+  "competitive","pressure","pressures","inflation","inflationary","recession",
+  "recessionary","downturn","slowdown","restructuring","layoff","layoffs","reduce",
+  "reduced","reduction","reductions","cut","cuts","negative","below","lower"
+]);
+
+const RISK_PHRASES = [
+  "market risk","credit risk","liquidity risk","operational risk","regulatory risk",
+  "interest rate risk","currency risk","foreign exchange risk","concentration risk",
+  "supply chain","cybersecurity","data breach","class action","sec investigation",
+  "material weakness","going concern","impairment charge","goodwill impairment",
+  "revenue recognition","restatement","control deficiency","litigation pending",
+  "antitrust","environmental liability","product liability"
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let fileContent = "";
+let detectedSections = [];
+let selectedSection = null;
+
+// ── ELEMENTS ──────────────────────────────────────────────────────────────────
+const dropZone  = document.getElementById("drop-zone");
+const fileInput = document.getElementById("file-input");
+const fileInfo  = document.getElementById("file-info");
+const fileNameEl= document.getElementById("file-name");
+const fileSizeEl= document.getElementById("file-size");
+const runBtn    = document.getElementById("run-btn");
+const modelSelect = document.getElementById("model-select");
+const modelBadge  = document.getElementById("model-badge");
+
+// Hide model selector — not needed for local analysis
+document.querySelector(".panel-section:nth-child(2)").style.display = "none";
+modelBadge.textContent = "LOCAL";
+
+// ── FILE UPLOAD ───────────────────────────────────────────────────────────────
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("drag-over"); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+
+document.querySelectorAll("input[name=scope]").forEach(r => {
+  r.addEventListener("change", () => {
+    const isSec = r.value === "section";
+    document.getElementById("sections-list").style.opacity = isSec ? "1" : "0.4";
+    document.getElementById("sections-list").style.pointerEvents = isSec ? "auto" : "none";
+    if (!isSec) {
+      selectedSection = null;
+      document.querySelectorAll(".section-item").forEach(el => el.classList.remove("active"));
+    }
+  });
+});
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let raw = e.target.result;
+    // Strip HTML tags if HTML file
+    if (file.name.match(/\.(htm|html)$/i)) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = raw;
+      raw = tmp.innerText || tmp.textContent || raw;
+    }
+    fileContent = raw;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = formatBytes(file.size);
+    fileInfo.classList.add("show");
+    runBtn.disabled = false;
+    detectSections(fileContent);
+  };
+  reader.readAsText(file);
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b/1024).toFixed(1) + " KB";
+  return (b/1048576).toFixed(1) + " MB";
+}
+
+// ── SECTION DETECTION ─────────────────────────────────────────────────────────
+function detectSections(text) {
+  const patterns = [
+    /(?:^|\n)(ITEM\s+\d+[A-Z]?[\.\:]?\s+[A-Z][A-Z\s]{5,})/gm,
+    /(?:^|\n)(Part\s+[IVX]+[\.\:]?\s+[A-Z][^\n]{5,})/gm,
+    /(?:^|\n)(PART\s+[IVX]+[\.\:]?\s+[A-Z][^\n]{5,})/gm,
+    /(?:^|\n)([A-Z][A-Z\s]{15,})\n/gm
+  ];
+  const found = new Map();
+  for (const pat of patterns) {
+    let m;
+    while ((m = pat.exec(text)) !== null) {
+      const title = m[1].trim().replace(/\s+/g, " ");
+      if (title.length > 6 && title.length < 80 && !found.has(title)) {
+        found.set(title, { title, start: m.index });
+      }
+    }
+  }
+  detectedSections = Array.from(found.values()).sort((a,b) => a.start - b.start).slice(0, 20);
+  for (let i = 0; i < detectedSections.length; i++) {
+    const s = detectedSections[i];
+    const end = detectedSections[i+1] ? detectedSections[i+1].start : text.length;
+    s.text = text.slice(s.start, end).trim();
+  }
+  renderSections();
+}
+
+function renderSections() {
+  const list = document.getElementById("sections-list");
+  if (detectedSections.length === 0) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:0.5rem;text-align:center;">No sections detected — full doc will be used</div>';
+    return;
+  }
+  list.innerHTML = detectedSections.map((s, i) => `
+    <div class="section-item" data-idx="${i}">
+      <span>${s.title}</span>
+      <span class="section-length">${formatBytes(s.text.length)}</span>
+    </div>`).join("");
+  list.querySelectorAll(".section-item").forEach(el => {
+    el.addEventListener("click", () => {
+      document.getElementById("scope-section").checked = true;
+      document.getElementById("sections-list").style.opacity = "1";
+      document.getElementById("sections-list").style.pointerEvents = "auto";
+      document.querySelectorAll(".section-item").forEach(e => e.classList.remove("active"));
+      el.classList.add("active");
+      selectedSection = detectedSections[parseInt(el.dataset.idx)];
+    });
+  });
+}
+
+// ── LOCAL SENTIMENT ENGINE ────────────────────────────────────────────────────
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z\s\-]/g, " ").split(/\s+/).filter(w => w.length > 2);
+}
+
+function analyzeSentiment(text, sectionLabel) {
+  const tokens = tokenize(text);
+  const lower  = text.toLowerCase();
+  const total  = tokens.length || 1;
+
+  let posCount = 0, negCount = 0;
+  const foundPos = [], foundNeg = [], foundRisk = [];
+
+  tokens.forEach(t => {
+    if (POS_WORDS.has(t)) { posCount++; if (foundPos.length < 8 && !foundPos.includes(t)) foundPos.push(t); }
+    if (NEG_WORDS.has(t)) { negCount++; if (foundNeg.length < 8 && !foundNeg.includes(t)) foundNeg.push(t); }
+  });
+
+  RISK_PHRASES.forEach(phrase => {
+    if (lower.includes(phrase) && foundRisk.length < 6) foundRisk.push(phrase);
+  });
+
+  const posRate = posCount / total;
+  const negRate = negCount / total;
+  const rawScore = (posRate - negRate) / Math.max(posRate + negRate, 0.001);
+  const score = Math.max(-1, Math.min(1, rawScore * 2));
+
+  const posScore = Math.round(Math.min(posRate * 400, 100));
+  const negScore = Math.round(Math.min(negRate * 400, 100));
+  const neuScore = Math.max(0, 100 - posScore - negScore);
+
+  let overall, outlook, confidence;
+  if (score > 0.35)       { overall = "Positive";  outlook = "Optimistic";  confidence = 0.82; }
+  else if (score > 0.1)   { overall = "Positive";  outlook = "Cautious";    confidence = 0.72; }
+  else if (score < -0.35) { overall = "Negative";  outlook = "Pessimistic"; confidence = 0.80; }
+  else if (score < -0.1)  { overall = "Negative";  outlook = "Cautious";    confidence = 0.70; }
+  else if (posCount > 5 && negCount > 5) { overall = "Mixed"; outlook = "Uncertain"; confidence = 0.65; }
+  else                    { overall = "Neutral";   outlook = "Uncertain";   confidence = 0.60; }
+
+  // Build human-readable summary from found signals
+  const posStr = foundPos.slice(0,4).join(", ") || "growth-related terms";
+  const negStr = foundNeg.slice(0,4).join(", ") || "risk-related terms";
+
+  const summary = overall === "Positive"
+    ? `The section conveys a generally positive tone, driven by language around ${posStr}. While some risk language (${negStr}) is present, positive signals outweigh negative ones at a ratio of ${posCount}:${negCount}.`
+    : overall === "Negative"
+    ? `The section carries a predominantly negative or cautious tone, with frequent references to ${negStr}. Positive language (${posStr}) is present but does not offset the overall risk-heavy framing. Positive to negative ratio: ${posCount}:${negCount}.`
+    : overall === "Mixed"
+    ? `The section displays a mixed sentiment with both positive signals (${posStr}) and negative signals (${negStr}) appearing in roughly equal measure (${posCount} vs ${negCount} occurrences).`
+    : `The section maintains a largely neutral and factual tone. Positive terms (${posCount}) and negative terms (${negCount}) appear at low frequency, suggesting descriptive rather than evaluative language.`;
+
+  const key_findings = `Analysis of ${total.toLocaleString()} tokens identified ${posCount} positive signal${posCount !== 1 ? "s" : ""} and ${negCount} negative signal${negCount !== 1 ? "s" : ""}. `
+    + (foundRisk.length ? `Risk phrases detected include: ${foundRisk.slice(0,3).join("; ")}. ` : "No specific financial risk phrases were flagged. ")
+    + (posScore > negScore
+      ? `The document uses constructive financial language suggesting management confidence in the reported period.`
+      : negScore > posScore
+      ? `The elevated frequency of risk and adverse language suggests cautious or defensive management communication.`
+      : `The balance of positive and negative language reflects standard regulatory disclosure practices.`);
+
+  return {
+    overall_sentiment: overall,
+    sentiment_score: parseFloat(score.toFixed(3)),
+    confidence,
+    positive_score: posScore,
+    negative_score: negScore,
+    neutral_score: neuScore,
+    summary,
+    key_findings,
+    tone_indicators: {
+      positive_keywords: foundPos.slice(0, 6),
+      negative_keywords: foundNeg.slice(0, 6),
+      risk_signals: foundRisk
+    },
+    financial_outlook: outlook,
+    section_analyzed: sectionLabel,
+    tokens_analyzed: total
+  };
+}
+
+// ── RUN ───────────────────────────────────────────────────────────────────────
+runBtn.addEventListener("click", () => {
+  const scope = document.querySelector("input[name=scope]:checked").value;
+  let textToAnalyze = fileContent;
+  let sectionLabel = "Full Document";
+
+  if (scope === "section") {
+    if (!selectedSection) { alert("Please select a section from the list."); return; }
+    textToAnalyze = selectedSection.text;
+    sectionLabel = selectedSection.title;
+  }
+
+  showLoading();
+
+  // Small timeout so loading spinner renders before heavy computation
+  setTimeout(() => {
+    const result = analyzeSentiment(textToAnalyze, sectionLabel);
+    renderResults(result, sectionLabel, textToAnalyze);
+  }, 120);
+});
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
+function showLoading() {
+  document.getElementById("empty-state").style.display = "none";
+  document.getElementById("loading-state").classList.add("show");
+  const rc = document.getElementById("results-container");
+  rc.style.display = "none";
+  rc.innerHTML = "";
+  document.getElementById("result-meta").textContent = "Analyzing...";
+  runBtn.disabled = true;
+}
+
+function renderResults(r, section, text) {
+  document.getElementById("loading-state").classList.remove("show");
+  runBtn.disabled = false;
+
+  const score      = r.sentiment_score;
+  const scoreColor = score > 0.1 ? "positive" : score < -0.1 ? "negative" : "neutral";
+  const scoreLabel = score > 0.1 ? "🟢" : score < -0.1 ? "🔴" : "🟡";
+  const meterPct   = Math.round(((score + 1) / 2) * 100);
+  const meterColor = score > 0.1 ? "#2ecc71" : score < -0.1 ? "#e74c3c" : "#f39c12";
+
+  const posKw  = (r.tone_indicators?.positive_keywords || []).map(w => `<span class="tag pos">${w}</span>`).join("");
+  const negKw  = (r.tone_indicators?.negative_keywords || []).map(w => `<span class="tag neg">${w}</span>`).join("");
+  const risks  = (r.tone_indicators?.risk_signals || []).map(w => `<span class="tag neu">${w}</span>`).join("");
+
+  const rc = document.getElementById("results-container");
+  rc.innerHTML = `
+    <div class="sentiment-overview">
+      <div class="score-card main">
+        <div class="score-label">Overall Sentiment</div>
+        <div class="score-value ${scoreColor}">${scoreLabel} ${r.overall_sentiment}</div>
+        <div class="score-sub">${r.financial_outlook} outlook &nbsp;·&nbsp; Confidence: ${Math.round(r.confidence * 100)}%</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Score</div>
+        <div class="score-value ${scoreColor}" style="font-size:22px;">${score.toFixed(2)}</div>
+        <div class="score-sub">-1.0 → +1.0</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Positive</div>
+        <div class="score-value positive" style="font-size:22px;">${r.positive_score}%</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Negative</div>
+        <div class="score-value negative" style="font-size:22px;">${r.negative_score}%</div>
+      </div>
+    </div>
+
+    <div class="sentiment-meter">
+      <div class="meter-label"><span>Sentiment Spectrum</span><span>${meterPct}th percentile</span></div>
+      <div class="meter-bar"><div class="meter-fill" style="width:${meterPct}%;background:${meterColor};"></div></div>
+      <div class="meter-labels"><span>Very Negative</span><span>Neutral</span><span>Very Positive</span></div>
+    </div>
+
+    <div class="analysis-block">
+      <div class="analysis-header"><div class="analysis-dot"></div>SUMMARY</div>
+      <div class="analysis-content"><p>${r.summary}</p></div>
+    </div>
+
+    <div class="analysis-block">
+      <div class="analysis-header"><div class="analysis-dot"></div>KEY FINDINGS</div>
+      <div class="analysis-content"><p>${r.key_findings}</p></div>
+    </div>
+
+    ${posKw || negKw || risks ? `
+    <div class="analysis-block">
+      <div class="analysis-header"><div class="analysis-dot"></div>TONE INDICATORS</div>
+      <div class="analysis-content">
+        ${posKw ? `<div style="margin-bottom:0.5rem;"><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-bottom:0.35rem;">POSITIVE SIGNALS</div><div class="tags-row">${posKw}</div></div>` : ""}
+        ${negKw ? `<div style="margin-bottom:0.5rem;"><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-bottom:0.35rem;">NEGATIVE SIGNALS</div><div class="tags-row">${negKw}</div></div>` : ""}
+        ${risks ? `<div><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-bottom:0.35rem;">RISK SIGNALS</div><div class="tags-row">${risks}</div></div>` : ""}
+      </div>
+    </div>` : ""}
+
+    <div class="analysis-block">
+      <div class="analysis-header"><div class="analysis-dot"></div>TEXT ANALYZED (preview)</div>
+      <div class="analysis-content">
+        <div class="token-row" style="margin-bottom:0.75rem;">
+          <span class="token-pill">Section: ${r.section_analyzed}</span>
+          <span class="token-pill">${r.tokens_analyzed.toLocaleString()} tokens</span>
+          <span class="token-pill">${text.length.toLocaleString()} chars</span>
+        </div>
+        <div class="text-preview">${text.slice(0, 600).replace(/</g,"&lt;").replace(/>/g,"&gt;")}${text.length > 600 ? "…" : ""}</div>
+      </div>
+    </div>`;
+
+  rc.style.display = "flex";
+  rc.style.flexDirection = "column";
+  document.getElementById("result-meta").textContent = `${section} · ${new Date().toLocaleTimeString()}`;
+}
+</script>
+</body>
+</html>
